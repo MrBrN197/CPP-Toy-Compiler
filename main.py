@@ -1,10 +1,28 @@
 # c++ compiler
+from enum import Enum
+
+class TokenType(Enum):
+    PLUS = '+'
+    MINUS = '-'
+    MULTIPLY = '*'
+    DIV = '/'
+    ASIGN = '='
+    LPAREN = '('
+    RPAREN = ')'
+    LSQUARE = '['
+    RSQUARE = ']'
+    LCURLY = '{'
+    RCURLY = '}'
+    SEMI = ';'
+    ID = 'ID'
+    INTEGER = 'INTEGER'
 
 class Token:
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, token_type, value=None):
+        self.token_type = token_type
+        self.value = value
     def __str__(self):
-        return f'<Token>: {self.name}'
+        return f'<Token>: {self.token_type:<20} Value: {self.value}'
 
     __repr__ = __str__
 
@@ -25,43 +43,41 @@ class Tokenizer:
     def skip_whitespace(self):
         while self.current_char is not None and self.current_char.isspace():
             self.advance()
-        
-    def get_alphanumeric(self):
+    
+    def get_integer(self):
+        result = ''
+        while self.current_char is not None and self.current_char.isnumeric():
+            result += self.current_char
+            self.advance()
+        value = int(result)
+        return Token(TokenType('INTEGER'), value)
+
+    def get_id(self):
         result = ''
         while self.current_char is not None and self.current_char.isalnum():
             result += self.current_char
             self.advance()
-        return Token(result)
+        return Token(TokenType('ID'), result)
 
 
     def get_next_token(self):
-        result = ''
         while self.current_char is not None:
             if self.current_char.isspace():
                 self.skip_whitespace()
                 continue
-            if self.current_char.isalnum():
-                return self.get_alphanumeric()
-            if self.current_char == '=':
-                self.advance()
-                return Token('=')
-            if self.current_char == '+':
-                self.advance()
-                return Token('+')
-            if self.current_char == '-':
-                self.advance()
-                return Token('-')
-            if self.current_char == '*':
-                self.advance()
-                return Token('*')
-            if self.current_char == '/':
-                self.advance()
-                return Token('/')
-            assert False
+            if self.current_char.isnumeric():
+                return self.get_integer()
+            if self.current_char.isalpha():
+                return self.get_id()
+            token_type = TokenType(self.current_char)
+            self.advance()
+            return Token(token_type)
 
-
-tokenizer = Tokenizer("int a = b + c")
-token = tokenizer.get_next_token()
-while token is not None:
-    print(token)
+with open("test.cpp") as fp:
+    text = fp.read()
+    tokenizer = Tokenizer(text)
     token = tokenizer.get_next_token()
+    while token is not None:
+        print(token)
+        token = tokenizer.get_next_token()
+    
