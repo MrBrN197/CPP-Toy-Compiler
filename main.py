@@ -99,7 +99,19 @@ class Parser:
         self.current_token = self.lexer.get_next_token()
 
     def term(self):
-        """term: INTEGER"""
+        """ term: factor ((MULTIPLY|DIV) factor)* """
+        node = self.factor()
+        while self.current_token.type in (TokenType.MULTIPLY, TokenType.DIV):
+            op = self.current_token.value
+            if self.current_token.type == TokenType.MULTIPLY:
+                self.eat(TokenType.MULTIPLY)
+            else:
+                self.eat(TokenType.DIV)
+            node = BinOp(node, op, self.factor())
+        return node
+
+    def factor(self):
+        """factor: INTEGER"""
         value = self.current_token.value
         self.eat(TokenType.INTEGER)
         return Constant(value)
