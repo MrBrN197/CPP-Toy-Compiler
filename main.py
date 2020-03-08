@@ -15,7 +15,9 @@ class TokenType(Enum):
     RCURLY = '}'
     SEMI = ';'
     ID = 'ID'
+    TYPE = 'TYPE'
     INTEGER = 'INTEGER'
+    ASSIGN = '='
 
 class Token:
     def __init__(self, type, value=None):
@@ -57,6 +59,8 @@ class Tokenizer:
         while self.current_char is not None and self.current_char.isalnum():
             result += self.current_char
             self.advance()
+        if result in ("int", "double", "float"): # TODO: deal with all type variations
+            return Token(TokenType('TYPE'), result)
         return Token(TokenType('ID'), result)
 
 
@@ -86,6 +90,26 @@ class BinOp:
         self.left = left
         self.op = op
         self.right = right
+
+class Block:
+    def __init__(self, exprs):
+        self.exprs = exprs
+
+class Var:
+    def __init__(self, name, type):
+        self.name = name
+        self.type = type
+
+class Function:
+    def __init__(self, name, params=None, block=None):
+        self.name = name
+        self.param_nodes = params
+        self.block_node = block
+
+class Assignment:
+    def __init__(self, var, expr):
+        self.var_node = var
+        self.expr_node = expr
 
 
 class Parser:
@@ -130,23 +154,48 @@ class Parser:
         self.eat(TokenType.SEMI)
         return node
 
+    def assignment(self):
+        """ assignment: TYPE ID ASSIGN expr """
+        var_type = self.current_token.value 
+        self.eat(TokenType.TYPE)
+        var_name = self.current_token.value 
+        self.eat(TokenType.ID)
+        self.eat(TokenType.ASSIGN)
+        expression = self.expr()
+        return Assignment(Var(var_name, var_type), expression)
+
     def scope(self):
-        """ scope: LCURLY expr* RCULRY """
+        """ scope: LCURLY (expr|assignment)* RCULRY """
         self.eat(TokenType.LCURLY)
         expressions = []
-        while self.current_token and self.current_token.type == TokenType.INTEGER:
-            expressions.append(self.expr())
+        while self.current_token and self.current_token.type in (TokenType.INTEGER, TokenType.TYPE):
+            if self.current_token.type == TokenType.INTEGER:
+                expressions.append(self.expr())
+            else:
+                expressions.append(self.assignment())
         self.eat(TokenType.RCURLY)
         return expressions
+
+    def function(self):
+        """ function: TYPE ID LPAREN RPAREN scope """
+        self.eat(TokenType.TYPE)
+        name = self.current_token.value
+        self.eat(TokenType.ID)
+        self.eat(TokenType.LPAREN)
+        self.eat(TokenType.RPAREN)
+        block = Block(self.scope())
+        return Function(name, block=block)
 
     def parser(self):
         """ gramar rules """
         """
-        scope: expr*
+        function: TYPE ID LPAREN RPAREN LCURLY scope RCURLY
+        scope: LCURLY (expr|assignment)* RCULRY
+        assignment: TYPE ID ASSIGN expr
         expr: term ((PLUS|MINUS) term)* SEMI
         factor: INTEGER
         """ 
-        return self.scope()
+        return self.function()
 
 
 
@@ -154,13 +203,8 @@ with open("test.cpp") as fp:
     text = fp.read()
     tokenizer = Tokenizer(text)
 
-    tokenizer.get_next_token() # skip int
-    tokenizer.get_next_token() # skip main
-    tokenizer.get_next_token() # skip LPAREN
-    tokenizer.get_next_token() # skip RPAREN
-
     parser = Parser(tokenizer)
 
-    block = parser.parser()
+    main_function = parser.parser()
 
-    print(len(block))
+    print(main_function)
