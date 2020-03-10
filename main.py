@@ -165,13 +165,27 @@ class Parser:
         return node
 
     def factor(self):
-        """factor: INTEGER"""
-        value = self.current_token.value
-        self.eat(TokenType.INTEGER)
-        return Constant(value)
+        """ factor: INTEGER | (PLUS|MINUS) expr | LPAREN expr RPAREN""" 
+
+        if self.current_token.type == TokenType.INTEGER:
+            value = self.current_token.value
+            self.eat(TokenType.INTEGER)
+            return Constant(value)
+        elif self.current_token.type in (TokenType.PLUS, TokenType.MINUS):
+            if self.current_token.type == TokenType.PLUS:
+                self.eat(TokenType.PLUS)
+                return Constant(value)
+            else:
+                self.eat(TokenType.MINUS)
+                return BinOp(-1, TokenType.MULTIPLY, value)
+        else:
+            self.eat(TokenType.LPAREN)
+            result = self.expr()
+            self.eat(TokenType.RPAREN)
+            return result
 
     def expr(self):
-        """expr: term ((PLUS|MINUS) term)* SEMI """
+        """ expr: term ((PLUS|MINUS) term)* """
 
         node = self.term()
         while self.current_token.type in (TokenType.PLUS, TokenType.MINUS):
@@ -181,7 +195,6 @@ class Parser:
             else:
                 self.eat(TokenType.MINUS)
             node = BinOp(node, op, self.term())
-        self.eat(TokenType.SEMI)
         return node
 
     def assignment(self):
@@ -195,16 +208,11 @@ class Parser:
         return Assignment(Var(var_name, var_type), expression)
 
     def scope(self):
-        """ scope: LCURLY (expr|assignment)* RCULRY """
+        """ scope: LCURLY statement-list RCULRY """
         self.eat(TokenType.LCURLY)
-        expressions = []
-        while self.current_token and self.current_token.type in (TokenType.INTEGER, TokenType.TYPE):
-            if self.current_token.type == TokenType.INTEGER:
-                expressions.append(self.expr())
-            else:
-                expressions.append(self.assignment())
+        result = self.statement_list()
         self.eat(TokenType.RCURLY)
-        return expressions
+        return result
 
     def function(self):
         """ function: TYPE ID LPAREN (parameter-list)? RPAREN LCURLY scope RCURLY """
@@ -233,16 +241,35 @@ class Parser:
             param_list.append(self.parameter())
         return None
 
+    def statement_list(self):
+        """ statement_list: ((expr|assignment) SEMI)* """
+        expressions = []
+        while self.current_token and self.current_token.type in (
+            TokenType.LPAREN, 
+            TokenType.MULTIPLY, 
+            TokenType.PLUS, 
+            TokenType.INTEGER, 
+            TokenType.TYPE
+            ):  # TODO: Make this better
+            if self.current_token.type == TokenType.TYPE:
+                expressions.append(self.assignment())
+            else:
+                expressions.append(self.expr())
+            self.eat(TokenType.SEMI)
+        return expressions
+
     def parser(self):
         """ gramar rules """
         """
         function: TYPE ID LPAREN (parameter-list)? RPAREN LCURLY scope RCURLY
         parameter-list: parameter (COMMA parameter)*
         parameter: TYPE ID
-        scope: LCURLY (expr|assignment)* RCULRY
+        scope: LCURLY statement-list RCULRY
+        statement_list: (expr|assignment)* SEMI
         assignment: TYPE ID ASSIGN expr
-        expr: term ((PLUS|MINUS) term)* SEMI
-        factor: INTEGER
+        expr: term ((PLUS|MINUS) term)*
+        term: factor ((MULTIPLY|DIV) factor)*
+        factor: INTEGER | LPAREN expr RPAREN | (PLUS|MINUS) expr 
         """ 
         return self.function()
 
