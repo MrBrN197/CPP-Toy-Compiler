@@ -18,6 +18,7 @@ class TokenType(Enum):
     TYPE = 'TYPE'
     INTEGER = 'INTEGER'
     ASSIGN = '='
+    COMMA = ','
 
 class Token:
     def __init__(self, type, value=None):
@@ -112,6 +113,35 @@ class Assignment:
         self.expr_node = expr
 
 
+class Symbol:
+    def __init__(self, name):
+        self.name = name
+    
+class BuiltInType(Symbol):
+    def __init__(self, name):
+        super().__init__(name)
+
+class VarSymbol(Symbol):
+    def __init__(self, name, type):
+        super().__init__(name)
+        self.type = type
+
+class SymbolTable:
+    def __init__(self):
+        self.symbols = {}
+
+    def lookup(self, type):
+        return self.symbols.get(type, None)
+
+    def _init_built_in_types():
+        self.insert(BuiltInType('void'))
+        self.insert(BuiltInType('int'))
+        self.insert(BuiltInType('float'))
+        self.insert(BuiltInType('double'))
+    def insert(self, symbol):
+        self.symbols[symbol.name] = symbol
+
+
 class Parser:
     def __init__(self, lexer):
         self.lexer = lexer
@@ -177,19 +207,38 @@ class Parser:
         return expressions
 
     def function(self):
-        """ function: TYPE ID LPAREN RPAREN scope """
+        """ function: TYPE ID LPAREN (parameter-list)? RPAREN LCURLY scope RCURLY """
         self.eat(TokenType.TYPE)
         name = self.current_token.value
         self.eat(TokenType.ID)
         self.eat(TokenType.LPAREN)
+        param_list = []
+        if(self.current_token.type == TokenType.TYPE):
+            param_list = self.parameter_list()
         self.eat(TokenType.RPAREN)
         block = Block(self.scope())
-        return Function(name, block=block)
+        return Function(name, params=param_list, block=block)
+
+    def parameter(self):
+        """ parameter: TYPE ID """
+        self.eat(TokenType.TYPE)
+        self.eat(TokenType.ID)
+        return None
+
+    def parameter_list(self):
+        """ parameter-list: parameter (COMMA parameter)* """
+        param_list = [self.parameter()]
+        while self.current_token.type == TokenType.COMMA:
+            self.eat(TokenType.COMMA)
+            param_list.append(self.parameter())
+        return None
 
     def parser(self):
         """ gramar rules """
         """
-        function: TYPE ID LPAREN RPAREN LCURLY scope RCURLY
+        function: TYPE ID LPAREN (parameter-list)? RPAREN LCURLY scope RCURLY
+        parameter-list: parameter (COMMA parameter)*
+        parameter: TYPE ID
         scope: LCURLY (expr|assignment)* RCULRY
         assignment: TYPE ID ASSIGN expr
         expr: term ((PLUS|MINUS) term)* SEMI
