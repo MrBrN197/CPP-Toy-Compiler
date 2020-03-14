@@ -1,4 +1,10 @@
 
+float foo(){
+
+}
+
+float bar(float a){}
+
 
 int main(float a, float b){
     float a = (1 + 2 * 3 + 4);

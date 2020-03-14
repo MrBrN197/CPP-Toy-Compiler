@@ -258,9 +258,17 @@ class Parser:
             self.eat(TokenType.SEMI)
         return expressions
 
+    def translation_unit(self):
+        """ translation-unit: (function)* """
+        functions = []
+        while self.current_token and self.current_token.type == TokenType.TYPE:
+            functions.append(self.function())
+        return functions
+
     def parser(self):
         """ gramar rules """
         """
+        translation-unit: (function)*
         function: TYPE ID LPAREN (parameter-list)? RPAREN LCURLY scope RCURLY
         parameter-list: parameter (COMMA parameter)*
         parameter: TYPE ID
@@ -271,7 +279,7 @@ class Parser:
         term: factor ((MULTIPLY|DIV) factor)*
         factor: INTEGER | LPAREN expr RPAREN | (PLUS|MINUS) expr 
         """ 
-        return self.function()
+        return self.translation_unit()
 
 
 
@@ -281,6 +289,6 @@ with open("test.cpp") as fp:
 
     parser = Parser(tokenizer)
 
-    main_function = parser.parser()
+    functions = parser.parser()
 
-    print(main_function)
+    print(f"Number Of Functions Defined: {len(functions)}")
