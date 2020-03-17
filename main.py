@@ -1,6 +1,7 @@
 # c++ compiler
 from enum import Enum
 
+# TODO: Finish defining tokens
 class TokenType(Enum):
     PLUS = '+'
     MINUS = '-'
@@ -19,6 +20,7 @@ class TokenType(Enum):
     INTEGER = 'INTEGER'
     ASSIGN = '='
     COMMA = ','
+    RETURN = 'RETURN'
 
 class Token:
     def __init__(self, type, value=None):
@@ -62,6 +64,8 @@ class Tokenizer:
             self.advance()
         if result in ("int", "double", "float"): # TODO: deal with all type variations
             return Token(TokenType('TYPE'), result)
+        if result == 'return':
+            return Token(TokenType('RETURN'), result)
         return Token(TokenType('ID'), result)
 
 
@@ -79,7 +83,7 @@ class Tokenizer:
             return Token(token_type, token_type.value)
 
 
-class Constant():
+class Constant:
     def __init__(self, value):
         self.value = value
     def __str__(self):
@@ -97,9 +101,8 @@ class Block:
         self.exprs = exprs
 
 class Var:
-    def __init__(self, name, type):
+    def __init__(self, name):
         self.name = name
-        self.type = type
 
 class Function:
     def __init__(self, name, params=None, block=None):
@@ -112,6 +115,9 @@ class Assignment:
         self.var_node = var
         self.expr_node = expr
 
+class Return:
+    def __init__(self, binop):
+        self.binop = binop
 
 class Symbol:
     def __init__(self, name):
@@ -130,8 +136,8 @@ class SymbolTable:
     def __init__(self):
         self.symbols = {}
 
-    def lookup(self, type):
-        return self.symbols.get(type, None)
+    def lookup(self, name):
+        return self.symbols.get(name, None)
 
     def _init_built_in_types():
         self.insert(BuiltInType('void'))
@@ -146,6 +152,7 @@ class Parser:
     def __init__(self, lexer):
         self.lexer = lexer
         self.current_token = self.lexer.get_next_token()
+        self.symbol_table = SymbolTable()
 
     def eat(self, type):
         if self.current_token.type != type:
@@ -165,8 +172,12 @@ class Parser:
         return node
 
     def factor(self):
-        """ factor: INTEGER | (PLUS|MINUS) expr | LPAREN expr RPAREN""" 
+        """ factor: ID | INTEGER | (PLUS|MINUS) expr | LPAREN expr RPAREN""" 
 
+        if self.current_token.type  == TokenType.ID:
+            var_name = self.current_token.value
+            value = self.eat(TokenType.ID)
+            return Var(var_name)
         if self.current_token.type == TokenType.INTEGER:
             value = self.current_token.value
             self.eat(TokenType.INTEGER)
@@ -197,22 +208,27 @@ class Parser:
             node = BinOp(node, op, self.term())
         return node
 
-    def assignment(self):
-        """ assignment: TYPE ID ASSIGN expr """
-        var_type = self.current_token.value 
+    def assignment_statement(self):
+        """ assignment-statement: TYPE ID ASSIGN expr """
         self.eat(TokenType.TYPE)
         var_name = self.current_token.value 
         self.eat(TokenType.ID)
         self.eat(TokenType.ASSIGN)
         expression = self.expr()
-        return Assignment(Var(var_name, var_type), expression)
+        return Assignment(Var(var_name), expression)
+
+    def return_statement(self):
+        """ return-statement: RETURN expr """
+        self.eat(TokenType.RETURN)
+        binop = self.expr()
+        return Return(binop)
 
     def scope(self):
         """ scope: LCURLY statement-list RCULRY """
         self.eat(TokenType.LCURLY)
-        result = self.statement_list()
+        statements = self.statement_list()
         self.eat(TokenType.RCURLY)
-        return result
+        return statements
 
     def function(self):
         """ function: TYPE ID LPAREN (parameter-list)? RPAREN LCURLY scope RCURLY """
@@ -242,17 +258,20 @@ class Parser:
         return None
 
     def statement_list(self):
-        """ statement_list: ((expr|assignment) SEMI)* """
+        """ statement_list: ((expr|assignment|return-statement) SEMI)* """
         expressions = []
         while self.current_token and self.current_token.type in (
             TokenType.LPAREN, 
             TokenType.MULTIPLY, 
             TokenType.PLUS, 
             TokenType.INTEGER, 
-            TokenType.TYPE
+            TokenType.TYPE,
+            TokenType.RETURN
             ):  # TODO: Make this better
             if self.current_token.type == TokenType.TYPE:
-                expressions.append(self.assignment())
+                expressions.append(self.assignment_statement())
+            elif self.current_token.type == TokenType.RETURN:
+                expressions.append(self.return_statement())
             else:
                 expressions.append(self.expr())
             self.eat(TokenType.SEMI)
@@ -273,11 +292,12 @@ class Parser:
         parameter-list: parameter (COMMA parameter)*
         parameter: TYPE ID
         scope: LCURLY statement-list RCULRY
-        statement_list: (expr|assignment)* SEMI
-        assignment: TYPE ID ASSIGN expr
+        statement_list: ((expr|assignment|return-statement) SEMI)*
+        assignment-statement: TYPE ID ASSIGN expr
+        return-statement: RETURN expr
         expr: term ((PLUS|MINUS) term)*
         term: factor ((MULTIPLY|DIV) factor)*
-        factor: INTEGER | LPAREN expr RPAREN | (PLUS|MINUS) expr 
+        factor: ID | INTEGER | LPAREN expr RPAREN | (PLUS|MINUS) expr 
         """ 
         return self.translation_unit()
 
