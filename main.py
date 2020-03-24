@@ -21,6 +21,7 @@ class TokenType(Enum):
     ASSIGN = '='
     COMMA = ','
     RETURN = 'RETURN'
+    CLASS = 'CLASS'
 
 class Token:
     def __init__(self, type, value=None):
@@ -66,6 +67,8 @@ class Tokenizer:
             return Token(TokenType('TYPE'), result)
         if result == 'return':
             return Token(TokenType('RETURN'), result)
+        elif result == 'class':
+            return Token(TokenType('CLASS'), result)
         return Token(TokenType('ID'), result)
 
 
@@ -109,6 +112,11 @@ class Function:
         self.name = name
         self.param_nodes = params
         self.block_node = block
+
+class Class:
+    def __init__(self, name, members_funcs: [Function]):
+        self.name = name
+        self.members_funcs = members_funcs
 
 class Assignment:
     def __init__(self, var, expr):
@@ -278,16 +286,37 @@ class Parser:
         return expressions
 
     def translation_unit(self):
-        """ translation-unit: (function)* """
-        functions = []
+        """ translation-unit: (function|class-defn)* """
+        definitions = []
+        while self.current_token and self.current_token.type in (TokenType.TYPE, TokenType.CLASS):
+            if self.current_token.type == TokenType.TYPE:
+                definitions.append(self.function())
+            else:   # TokenType.CLASS
+                definitions.append(self.class_defn())
+        return definitions
+
+    def class_defn(self):
+        """ class-defn: CLASS ID LCURLY (function)* RCURLY SEMI """
+        self.eat(TokenType.CLASS)
+        name = self.current_token.value
+        self.eat(TokenType.ID)
+        self.eat(TokenType.LCURLY)
+
+        members_funcs = []
+
         while self.current_token and self.current_token.type == TokenType.TYPE:
-            functions.append(self.function())
-        return functions
+            result = self.function()
+            members_funcs.append(result)
+
+        self.eat(TokenType.RCURLY)
+        self.eat(TokenType.SEMI)
+        return Class(name, members_funcs)
 
     def parser(self):
         """ gramar rules """
         """
-        translation-unit: (function)*
+        translation-unit: (function|class-defn)*
+        class-defn: CLASS ID LCURLY (function)* RCURLY SEMI
         function: TYPE ID LPAREN (parameter-list)? RPAREN LCURLY scope RCURLY
         parameter-list: parameter (COMMA parameter)*
         parameter: TYPE ID
@@ -309,6 +338,6 @@ with open("test.cpp") as fp:
 
     parser = Parser(tokenizer)
 
-    functions = parser.parser()
+    translation_unit = parser.parser()
 
-    print(f"Number Of Functions Defined: {len(functions)}")
+    print(f"Number Of Functions Defined: {len(translation_unit)}")

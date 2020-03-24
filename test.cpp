@@ -1,9 +1,10 @@
 
-int foo(){
-    return 5;
-}
-
-float bar(float a){}
+class Baz{
+    int foo(){
+        return 5;
+    }
+    float bar(float a){}
+};
 
 
 int main(float a, float b){
